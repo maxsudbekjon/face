@@ -1,3 +1,62 @@
+#\\\\\\\\\\\\\\\\\\\\\\\\      MODEL     /////////////////////////////////
+"""
+from django.contrib.auth.models import AbstractUser
+from django.db.models import CharField, ImageField, DateTimeField, Model, ForeignKey, CASCADE, TextChoices
+from django.db.models.fields import IntegerField, TextField
+from django.core.validators import RegexValidator
+
+import os
+import face_recognition
+class Employee(AbstractUser):
+    phone = CharField(max_length=23, default='', validators=[RegexValidator(regex=r'^\+?\d{9,15}$')])
+    image = ImageField(upload_to='image/')
+    created_at = DateTimeField(auto_now_add=True)
+    updated_at = DateTimeField(auto_now=True)
+    encoding=TextField(null=True,blank=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # Avval modelni saqlaymiz
+
+        if self.image:  # Agar rasm mavjud bo‘lsa
+            image_path = self.image.path  # Rasmning to‘liq yo‘li
+            if os.path.exists(image_path):  # Fayl mavjudligini tekshiramiz
+                image = face_recognition.load_image_file(image_path)
+                encodings = face_recognition.face_encodings(image)
+
+                if encodings:
+                    self.encoding = ",".join(map(str, encodings[0]))  # Encodingni string ko‘rinishida saqlash
+                    super().save(update_fields=['encoding'])
+
+
+class Cameras(Model):
+    location = CharField(max_length=255)
+    ip_address = CharField(max_length=255)
+    created_at = DateTimeField(auto_now_add=True)
+
+
+class Attendance(Model):
+    class TYPE(TextChoices):
+        IN = 'in', 'In',
+        OUT = 'out', 'Out',
+
+    employee = ForeignKey('apps.Employee', CASCADE, related_name='attendances')
+    camera = ForeignKey('apps.Cameras', CASCADE, related_name='attendances')
+    timestamp = DateTimeField(auto_now_add=True)
+    entry_type = CharField(max_length=255, choices=TYPE.choices)
+
+
+class WorkSessions(Model):
+    class STATUS(TextChoices):
+        ACTIVE = 'active', 'Active'
+        COMPLETED = 'completed', 'Completed'
+
+    employee = ForeignKey('apps.Employee', CASCADE, related_name='work_sessions')
+    check_in = DateTimeField()  # `auto_now_add=True` olib tashlandi
+    check_out = DateTimeField(null=True, blank=True)
+    duration = IntegerField(default=0, null=True, blank=True)
+    status = CharField(max_length=244, choices=STATUS.choices, default=STATUS.COMPLETED)
+
+"""
 from datetime import datetime
 import cv2
 import face_recognition
@@ -228,3 +287,13 @@ for cap in cameras:
 cv2.destroyAllWindows()
 cursor.close()
 conn.close()
+
+
+
+
+
+
+
+
+
+
